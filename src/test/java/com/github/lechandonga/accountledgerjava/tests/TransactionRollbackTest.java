@@ -3,6 +3,7 @@ package com.github.lechandonga.accountledgerjava.tests;
 import com.github.lechandonga.accountledgerjava.domain.LedgerEntryType;
 import com.github.lechandonga.accountledgerjava.repo.AccountRepository;
 import com.github.lechandonga.accountledgerjava.repo.LedgerEntryRepository;
+import com.github.lechandonga.accountledgerjava.repo.LedgerOperationRepository;
 import com.github.lechandonga.accountledgerjava.service.AccountService;
 import com.zaxxer.hikari.HikariDataSource;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +34,8 @@ class TransactionRollbackTest {
     @Autowired
     LedgerEntryRepository ledgerEntryRepository;
     @Autowired
+    LedgerOperationRepository ledgerOperationRepository;
+    @Autowired
     TransactionTemplate txTemplate;
     @Autowired
     DataSource dataSource;
@@ -40,6 +43,7 @@ class TransactionRollbackTest {
     @BeforeEach
     void clean() {
         ledgerEntryRepository.deleteAll();
+        ledgerOperationRepository.deleteAll();
         accountRepository.deleteAll();
     }
 

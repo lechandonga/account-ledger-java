@@ -6,6 +6,7 @@ import com.github.lechandonga.accountledgerjava.error.InvalidPaginationException
 import com.github.lechandonga.accountledgerjava.error.LedgerException;
 import com.github.lechandonga.accountledgerjava.repo.AccountRepository;
 import com.github.lechandonga.accountledgerjava.repo.LedgerEntryRepository;
+import com.github.lechandonga.accountledgerjava.repo.LedgerOperationRepository;
 import com.github.lechandonga.accountledgerjava.service.AccountService;
 import com.github.lechandonga.accountledgerjava.service.LedgerPage;
 import com.github.lechandonga.accountledgerjava.service.LedgerService;
@@ -42,10 +43,13 @@ class LedgerPaginationTest {
     AccountRepository accountRepository;
     @Autowired
     LedgerEntryRepository ledgerEntryRepository;
+    @Autowired
+    LedgerOperationRepository ledgerOperationRepository;
 
     @BeforeEach
     void clean() {
         ledgerEntryRepository.deleteAll();
+        ledgerOperationRepository.deleteAll();
         accountRepository.deleteAll();
     }
 

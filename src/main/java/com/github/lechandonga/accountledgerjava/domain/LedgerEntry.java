@@ -44,6 +44,10 @@ public class LedgerEntry {
     @Column(name = "request_id", nullable = false, length = 128)
     private String requestId;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "operation_kind", nullable = false, length = 16)
+    private LedgerOperationKind operationKind;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -52,11 +56,19 @@ public class LedgerEntry {
 
     public LedgerEntry(String accountId, LedgerEntryType type, long amount,
                        long balanceAfter, String requestId, Instant createdAt) {
+        this(accountId, type, amount, balanceAfter, requestId,
+                LedgerOperationKind.CHANGE, createdAt);
+    }
+
+    public LedgerEntry(String accountId, LedgerEntryType type, long amount,
+                       long balanceAfter, String requestId,
+                       LedgerOperationKind operationKind, Instant createdAt) {
         this.accountId = accountId;
         this.type = type;
         this.amount = amount;
         this.balanceAfter = balanceAfter;
         this.requestId = requestId;
+        this.operationKind = operationKind;
         this.createdAt = createdAt;
     }
 
@@ -82,6 +94,10 @@ public class LedgerEntry {
 
     public String getRequestId() {
         return requestId;
+    }
+
+    public LedgerOperationKind getOperationKind() {
+        return operationKind;
     }
 
     public Instant getCreatedAt() {

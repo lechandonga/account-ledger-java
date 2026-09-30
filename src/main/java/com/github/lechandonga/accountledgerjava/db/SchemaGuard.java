@@ -20,9 +20,11 @@ public class SchemaGuard implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(SchemaGuard.class);
 
     private final Flyway flyway;
+    private final SchemaVerifier schemaVerifier;
 
-    public SchemaGuard(Flyway flyway) {
+    public SchemaGuard(Flyway flyway, SchemaVerifier schemaVerifier) {
         this.flyway = flyway;
+        this.schemaVerifier = schemaVerifier;
     }
 
     @Override
@@ -35,6 +37,9 @@ public class SchemaGuard implements ApplicationRunner {
                             + (result.errorDetails != null ? result.errorDetails.errorMessage : "unknown"),
                     null);
         }
+        // Flyway 校验和只能发现迁移脚本层面的变化；约束可能在运行期被人直接删掉/改掉，
+        // 因此再读取实际库元数据逐项核对一遍。
+        schemaVerifier.verify();
         log.info("schema validation passed, {} migrations applied",
                 flyway.info().applied().length);
     }

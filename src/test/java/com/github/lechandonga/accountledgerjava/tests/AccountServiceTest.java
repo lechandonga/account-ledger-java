@@ -5,6 +5,7 @@ import com.github.lechandonga.accountledgerjava.error.InsufficientFundsException
 import com.github.lechandonga.accountledgerjava.error.LedgerException;
 import com.github.lechandonga.accountledgerjava.repo.AccountRepository;
 import com.github.lechandonga.accountledgerjava.repo.LedgerEntryRepository;
+import com.github.lechandonga.accountledgerjava.repo.LedgerOperationRepository;
 import com.github.lechandonga.accountledgerjava.service.AccountService;
 import com.github.lechandonga.accountledgerjava.service.ChangeResult;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,10 +42,13 @@ class AccountServiceTest {
     AccountRepository accountRepository;
     @Autowired
     LedgerEntryRepository ledgerEntryRepository;
+    @Autowired
+    LedgerOperationRepository ledgerOperationRepository;
 
     @BeforeEach
     void clean() {
         ledgerEntryRepository.deleteAll();
+        ledgerOperationRepository.deleteAll();
         accountRepository.deleteAll();
     }
 
