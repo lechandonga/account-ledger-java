@@ -3,12 +3,16 @@ package com.github.lechandonga.accountledgerjava.service;
 import com.github.lechandonga.accountledgerjava.domain.Account;
 import com.github.lechandonga.accountledgerjava.domain.LedgerEntry;
 import com.github.lechandonga.accountledgerjava.domain.LedgerEntryType;
+import com.github.lechandonga.accountledgerjava.domain.LedgerRequest;
+import com.github.lechandonga.accountledgerjava.domain.OperationKind;
 import com.github.lechandonga.accountledgerjava.error.ConcurrencyConflictException;
+import com.github.lechandonga.accountledgerjava.error.DuplicateRequestException;
 import com.github.lechandonga.accountledgerjava.error.InsufficientFundsException;
 import com.github.lechandonga.accountledgerjava.error.LedgerException;
 import com.github.lechandonga.accountledgerjava.error.PersistenceFailureException;
 import com.github.lechandonga.accountledgerjava.repo.AccountRepository;
 import com.github.lechandonga.accountledgerjava.repo.LedgerEntryRepository;
+import com.github.lechandonga.accountledgerjava.repo.LedgerRequestRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
@@ -35,13 +39,16 @@ public class AccountService {
 
     private final AccountRepository accountRepository;
     private final LedgerEntryRepository ledgerEntryRepository;
+    private final LedgerRequestRepository ledgerRequestRepository;
     private final TransactionTemplate txTemplate;
 
     public AccountService(AccountRepository accountRepository,
                           LedgerEntryRepository ledgerEntryRepository,
+                          LedgerRequestRepository ledgerRequestRepository,
                           TransactionTemplate txTemplate) {
         this.accountRepository = accountRepository;
         this.ledgerEntryRepository = ledgerEntryRepository;
+        this.ledgerRequestRepository = ledgerRequestRepository;
         this.txTemplate = txTemplate;
     }
 
@@ -81,11 +88,10 @@ public class AccountService {
                 }
             };
         }
-        // 快路径：已处理过的请求直接返回首次结果（只读，无需事务写）。
-        Optional<LedgerEntry> existing = ledgerEntryRepository.findByRequestId(requestId);
-        if (existing.isPresent()) {
-            log.info("applyChange replay requestId={} entryId={}", requestId, existing.get().getId());
-            return toResult(existing.get(), true);
+        // 快路径：已登记过的请求直接回放首次结果（只读）。
+        Optional<LedgerRequest> registered = ledgerRequestRepository.findById(requestId);
+        if (registered.isPresent()) {
+            return replay(registered.get(), accountId, type, amount);
         }
         try {
             return txTemplate.execute(tx -> doApplyChange(accountId, type, amount, requestId));
@@ -94,14 +100,12 @@ public class AccountService {
             log.info("applyChange conflict account={} requestId={}", accountId, requestId);
             throw new ConcurrencyConflictException(accountId, e);
         } catch (DataIntegrityViolationException e) {
-            // 并发重复提交撞上 request_id 唯一约束：本事务回滚，返回首次结果。
-            return ledgerEntryRepository.findByRequestId(requestId)
-                    .map(entry -> {
-                        log.info("applyChange replay-after-race requestId={} entryId={}", requestId, entry.getId());
-                        return toResult(entry, true);
-                    })
+            // 并发重复提交撞上 ledger_request 主键 / (账户,请求号) 唯一约束：本事务回滚，回放首次结果。
+            LedgerRequest winner = ledgerRequestRepository.findById(requestId)
                     .orElseThrow(() -> new PersistenceFailureException(
                             "integrity violation without matching requestId " + requestId, e));
+            log.info("applyChange replay-after-race requestId={}", requestId);
+            return replay(winner, accountId, type, amount);
         } catch (InsufficientFundsException e) {
             throw e;
         } catch (DataAccessException e) {
@@ -109,8 +113,33 @@ public class AccountService {
         }
     }
 
+    /** 已登记请求：同种类单边操作回放首次结果；跨种类复用请求号按重复提交拒绝。 */
+    private ChangeResult replay(LedgerRequest registered, String accountId, LedgerEntryType type, long amount) {
+        if (registered.getOpKind() != OperationKind.SINGLE_CHANGE) {
+            log.info("requestId={} already registered as {} for a different operation kind",
+                    registered.getId(), registered.getOpKind());
+            throw new DuplicateRequestException(registered.getId(), registered.getOpKind());
+        }
+        LedgerEntry entry = ledgerEntryRepository
+                .findByAccountIdAndRequestId(accountId, registered.getId())
+                .orElseThrow(() -> new PersistenceFailureException(
+                        "registered request missing ledger entry: " + registered.getId(), null));
+        if (entry.getType() != type || entry.getAmount() != amount) {
+            // 请求号相同但操作内容与首次不一致：不执行新操作，明确按重复提交拒绝。
+            log.info("replay parameter mismatch requestId={} submitted=({},{}) first=({},{})",
+                    registered.getId(), type, amount, entry.getType(), entry.getAmount());
+            throw new DuplicateRequestException(registered.getId(), OperationKind.SINGLE_CHANGE);
+        }
+        log.info("applyChange replay requestId={} entryId={}", registered.getId(), entry.getId());
+        return toResult(entry, true);
+    }
+
     /** 事务内：余额变动与流水写入同生共死。 */
     private ChangeResult doApplyChange(String accountId, LedgerEntryType type, long amount, String requestId) {
+        // 先登记请求：ledger_request 主键是幂等的最终防线（单边/划转共用同一命名空间）。
+        ledgerRequestRepository.saveAndFlush(
+                new LedgerRequest(requestId, OperationKind.SINGLE_CHANGE, Instant.now()));
+
         Account account = accountRepository.findById(accountId)
                 .orElseThrow(() -> new PersistenceFailureException("account not found: " + accountId, null));
 

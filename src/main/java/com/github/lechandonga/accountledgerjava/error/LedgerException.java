@@ -24,6 +24,8 @@ public abstract class LedgerException extends RuntimeException {
         CONCURRENCY_CONFLICT,
         /** 非法参数（如非法游标/分页大小）。 */
         INVALID_ARGUMENT,
+        /** 请求号已被另一种操作占用，按重复提交拒绝，不执行新操作。 */
+        DUPLICATE_REQUEST,
         /** 底层持久化故障（连接、约束、超时等），已脱敏包装。 */
         PERSISTENCE_FAILURE
     }

@@ -98,7 +98,8 @@ class TransactionRollbackTest {
 
         long balance = accountService.findAccount("t3").orElseThrow().getBalance();
         long entries = ledgerEntryRepository.count();
-        long balanceAfter = ledgerEntryRepository.findByRequestId("req-atomic-1").orElseThrow().getBalanceAfter();
+        long balanceAfter = ledgerEntryRepository
+                .findByAccountIdAndRequestId("t3", "req-atomic-1").orElseThrow().getBalanceAfter();
         log.info("debit 20 from 50 -> balance={} entries={} entry.balanceAfter={} (expect 30/1/30)",
                 balance, entries, balanceAfter);
 
